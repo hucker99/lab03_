@@ -2,9 +2,6 @@
 
 #ifndef INCLUDE_HEADER_HPP_
 #define INCLUDE_HEADER_HPP_
-//
-// Created by od341 on 25.09.2019.
-//
 #include <iostream>
 #include <string>
 #include <atomic>
