@@ -1,144 +1,132 @@
-// Copyright 2018 Your Name <your_email>
+// Copyright 2019 Kirill <your_email>
 
 #ifndef INCLUDE_HEADER_HPP_
 #define INCLUDE_HEADER_HPP_
-//
-// Created by od341 on 25.09.2019.
-//
-#include <iostream>
+
 #include <string>
 #include <atomic>
 #include <map>
 
+using std::string;
+using std::map;
+using std::atomic_uint;
+
 template <typename T>
 class SharedPtr {
 public:
-    SharedPtr();
-    explicit SharedPtr(T* ptr);
-    explicit SharedPtr(const SharedPtr& r);
-    explicit SharedPtr(SharedPtr&& r);
-    ~SharedPtr();
-    auto operator=(const SharedPtr& r) -> SharedPtr&;
-    auto operator=(SharedPtr&& r) -> SharedPtr&;
+    SharedPtr()
+    {
+        _ptr = nullptr;
+    }
+    explicit SharedPtr(T* ptr)
+    {
+        _ptr = ptr;
+        SharedPtr::data_base[_ptr] = new atomic_uint(1);
+    }
+    explicit SharedPtr(const SharedPtr& r)
+    {
+        _ptr = r._ptr;
+        if (_ptr != nullptr)
+            (*SharedPtr::data_base[_ptr])++;
+    }
+    explicit SharedPtr(SharedPtr&& r)
+    {
+        _ptr = r._ptr;
+        r._ptr = nullptr;
+    }
+    ~SharedPtr()
+    {
+        if (_ptr == nullptr)
+            return;
+        if (SharedPtr::data_base[_ptr] == nullptr)
+            _ptr = nullptr;
+        (*SharedPtr::data_base[_ptr])--;
+        if ((*SharedPtr::data_base[_ptr]) == 0)
+        {
+            delete SharedPtr::data_base[_ptr];
+            SharedPtr::data_base.erase(_ptr);
+            delete _ptr;
+        }
+        _ptr = nullptr;
+    }
+    auto operator=(const SharedPtr& r) -> SharedPtr& {
+        if (&r == this)
+            return *this;
+        this->~SharedPtr();
+        _ptr = r._ptr;
+        if (_ptr != nullptr)
+            (*SharedPtr::data_base[_ptr])++;
+        return *this;
+    }
+    auto operator=(SharedPtr&& r) -> SharedPtr& {
+        if (&r == this)
+            return *this;
+        this->~SharedPtr();
 
-    operator bool() const;
-    auto operator*() const -> T&;
-    auto operator->() const -> T*;
+        _ptr = r._ptr;
+        r._ptr = nullptr;
+        return *this;
+    }
 
-    auto get() -> T*;
-    void reset();
-    void reset(T* ptr);
-    void Pswap(SharedPtr& r);
-    auto use_count() const -> size_t;
-    static std::map<int64_t, std::atomic_uint >* ptr_table;
+    // checks if the pointer points to an object
+    operator bool() const
+    {
+        return (_ptr != nullptr);
+    }
+    auto operator*() const -> T&
+    {
+        return *_ptr;
+    }
+    auto operator->() const -> T*
+    {
+        return _ptr;
+    }
+
+    auto get() -> T*
+    {
+        return _ptr;
+    }
+    void reset()
+    {
+         this->~SharedPtr();
+    }
+    void reset(T* ptr)
+    {
+        if (_ptr != nullptr)
+            if ((*SharedPtr::data_base[_ptr]) != 0)
+                (*SharedPtr::data_base[_ptr])--;
+        _ptr = nullptr;
+        if (ptr == nullptr)
+            return;
+        _ptr = ptr;
+        if ((*SharedPtr::data_base[_ptr]))
+            (*SharedPtr::data_base[_ptr])++;
+        SharedPtr::data_base[_ptr] = new atomic_uint(1);
+    }
+    void Swap(SharedPtr& r)
+    {
+        T* temp;
+        temp = this->_ptr;
+        this->_ptr = r._ptr;
+        r._ptr = temp;
+        temp = nullptr;
+    }
+    // returns the number of SharedPtr objects
+    // that reference the same managed object
+    auto use_count() const -> size_t
+    {
+        if (_ptr == nullptr)
+            return 0;
+        size_t number = (*SharedPtr::data_base[_ptr]);
+        return number;
+    }
+    static std::map <T*, std::atomic_uint*> data_base;
+
 private:
     T* _ptr;
 };
 
-template<typename T>
-SharedPtr<T>::SharedPtr():_ptr(nullptr){}
-
-template<typename T>
-SharedPtr<T>::SharedPtr(T *ptr):_ptr(ptr) {
-    SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))++;
-}
-
-template<typename T>
-SharedPtr<T>::SharedPtr(const SharedPtr &r):_ptr(r._ptr) {
-    SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))++;
-}
-
-template<typename T>
-SharedPtr<T>::SharedPtr(SharedPtr &&r):_ptr(r->ptr) {
-    SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))++;
-}
-
-template<typename T>
-std::map<int64_t, std::atomic_uint> *SharedPtr<T>::
-        ptr_table = new std::map<int64_t, std::atomic_uint>();
-
-template<typename T>
-SharedPtr<T>::~SharedPtr() {
-    SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))--;
-    if (SharedPtr::ptr_table->operator[]
-            (reinterpret_cast<int64_t>(_ptr)) == 0) {
-        SharedPtr::ptr_table->erase(reinterpret_cast<int64_t>(this->_ptr));
-        delete _ptr;
-    }
-}
-
-template<typename T>
-SharedPtr<T>::operator bool() const {
-    if (this->_ptr != NULL) return true;
-    return false;
-}
-
-template<typename T>
-void SharedPtr<T>::reset() {
-    if (this->ptr_table->operator[](reinterpret_cast<int64_t>(_ptr)) == 1) {
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))--;
-        SharedPtr::ptr_table->erase(reinterpret_cast<int64_t>(this->_ptr));
-        delete _ptr;
-        _ptr = nullptr;
-
-    } else {
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))--;
-        SharedPtr::ptr_table->erase(reinterpret_cast<int64_t>(this->_ptr));
-        _ptr = nullptr;
-    }
-}
-
-template<typename T>
-void SharedPtr<T>::reset(T *ptr) {
-    if (this->ptr_table->operator[](reinterpret_cast<int64_t>(_ptr)) == 1) {
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))--;
-        SharedPtr::ptr_table->erase(reinterpret_cast<int64_t>(this->_ptr));
-        delete _ptr;
-        _ptr = ptr;
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(ptr))++;
-    } else {
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr))--;
-        SharedPtr::ptr_table->erase(reinterpret_cast<int64_t>(this->_ptr));
-        _ptr = ptr;
-        SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(ptr))++;
-    }
-}
-
-template<typename T>
-void SharedPtr<T>::Pswap(SharedPtr &r) {
-    SharedPtr tmp;
-    tmp = *this;
-    *this = r;
-    r = tmp;
-}
-
-template<typename T>
-auto SharedPtr<T>::operator*() const -> T & {
-    return *(this->_ptr);
-}
-
-
-template<typename T>
-auto SharedPtr<T>::operator=(const SharedPtr &r) -> SharedPtr & {
-    if (this->_ptr != r._ptr) {
-        this->reset(r._ptr);
-    }
-    return *this;
-}
-
-template<typename T>
-auto SharedPtr<T>::get() -> T * {
-    return this->_ptr;
-}
-
-template<typename T>
-auto SharedPtr<T>::operator->() const -> T*{
-    return this->_ptr;
-}
-
-template<typename T>
-auto SharedPtr<T>::use_count() const -> size_t {
-    return SharedPtr::ptr_table->operator[](reinterpret_cast<int64_t>(_ptr));
-}
+template <typename T>
+std::map<T*, std::atomic_uint*> SharedPtr<T>::data_base{};
 
 #endif // INCLUDE_HEADER_HPP_
