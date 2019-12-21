@@ -1,39 +1,44 @@
-// Copyright 2018 Your Name <your_email>
+// Copyright 2019 Kirill <your_email>
 
 #include <gtest/gtest.h>
 #include "header.hpp"
-#include <iostream>
-#include <string>
-#include <atomic>
-#include <map>
 
 TEST(Example, EmptyTest) {
-int *a = new int;
-*a = 7;
-int *b = new int;
-*b = 8;
+char *test_ptr1 = new char;
+*test_ptr1 = 'a';
 
-SharedPtr<int> s1(a);
-EXPECT_EQ(s1.use_count(), 1);
-EXPECT_EQ(s1.get(), a);
+SharedPtr<char> pointer1(test_ptr1);
+EXPECT_EQ(pointer1.get(), test_ptr1);
+EXPECT_EQ(pointer1.use_count(), 1);
 
-SharedPtr<int> s2(a);
-SharedPtr<int> s3(b);
+SharedPtr<char> pointer2(pointer1);
+EXPECT_EQ(pointer2.get(), pointer1.get());
+EXPECT_EQ(pointer1.use_count(), 2);
+EXPECT_EQ(pointer2.use_count(), 2);
 
-EXPECT_EQ(*s1, *a);
-s1.Pswap(s2);
-EXPECT_EQ(s1, s2);
+char *test_ptr2 = new char;
+*test_ptr2 = 'b';
+SharedPtr<char> pointer3(test_ptr2);
+EXPECT_EQ(*pointer3, *test_ptr2);
 
-s1.reset();
-EXPECT_EQ(s1.use_count(), 0);
+pointer2 = pointer3;
+EXPECT_EQ(pointer2.get(), pointer3.get());
 
-s1 = s2;
-EXPECT_EQ(s1, s2);
+pointer1.Swap(pointer3);
+EXPECT_EQ(pointer1.get(), test_ptr2);
+EXPECT_EQ(pointer3.get(), test_ptr1);
 
-s1.reset(b);
-EXPECT_EQ(s1.use_count(), s3.use_count());
+pointer3.reset();
+EXPECT_EQ(pointer3.use_count(), 0);
+EXPECT_EQ(pointer3.get(), nullptr);
+
+//pointer2.reset(test_ptr1);
+//EXPECT_EQ(pointer2.get(), test_ptr1);
+EXPECT_EQ(pointer1.use_count(), 2);
+EXPECT_EQ(pointer2.use_count(), 2);
+pointer1.reset();
+pointer2.reset();
 }
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
